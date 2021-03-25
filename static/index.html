@@ -36,6 +36,15 @@ var H = canvas.height = window.innerHeight-50;
 var wscounter = 0;
 var socket;
 
+function getRandomRGBColor() {
+    //https://www.w3schools.com/js/js_random.asp
+    //https://stackoverflow.com/questions/2173229/how-do-i-write-a-rgb-color-value-in-javascript
+    r = Math.floor(Math.random() * 255); 
+    g = Math.floor(Math.random() * 255);
+    b = Math.floor(Math.random() * 255);
+    return ["rgb(",r,",",g,",",b,")"].join("");
+}
+
 function debug(str) {
     var debugDiv = document.getElementById('debug');
     debugDiv.innerHTML = "" + str;
@@ -47,15 +56,22 @@ world = {};
 //XXX: TODO Make this prettier!
 function drawCircle(context,entity) {
     with(context) {
-        beginPath();                
+        beginPath();              
         lineWidth = 3;
         var x = entity["x"];
         var y = entity["y"];
         //moveTo(x,y);
         fillStyle = entity["colour"];
-        strokeStyle = fillStyle;
+        
+        // https://stackoverflow.com/questions/7541286/how-can-i-plot-a-gradient-line-in-html-canvas
+        var grd = createLinearGradient(0,500,0, 0);
+        grd.addColorStop(0, entity["colour"]);
+        grd.addColorStop(1, entity["colour"]);
+
+        strokeStyle = grd;
+        beginPath();
         arc(x, y, (entity["radius"])?entity["radius"]:50, 0, 2.0 * Math.PI, false);  
-        stroke();                                
+        stroke();                                  
     }
 }
 
@@ -125,6 +141,9 @@ function addEntity(entity, data) {
     world[entity] = data;
     drawNextFrame(); // (but should we?)
     //XXX: Send a XHTML Request that updates the entity you just modified!
+    jsonObject = {}
+    jsonObject[entity] = data
+    socket.send(JSON.stringify({ [entity]: data }));
 }
 var counter = 0;
 function addEntityWithoutName(data) {
@@ -231,15 +250,15 @@ mouse = (function() {
 // Add the application specific mouse listeners!
 //XXX: TODO Make these prettier!
 mouse.mousedowners.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'blue'});
+    addEntityWithoutName({'x':x,'y':y,'colour':getRandomRGBColor()});
 });
 
 mouse.mouseuppers.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'red'});
+    addEntityWithoutName({'x':x,'y':y,'colour':getRandomRGBColor()});
 });
 
 mouse.mousedraggers.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'green',
+    addEntityWithoutName({'x':x,'y':y,'colour':'white',
                           'radius':10});
 });
 
@@ -254,6 +273,7 @@ function wsSetup() {
     socket = new WebSocket(url);
     socket.onopen = function() {
         //XXX: TODO What are you going to do here?
+        update()
     };
     socket.onerror = function(msg) {
         debug("WebSocket Error:" + msg.data);
@@ -261,7 +281,12 @@ function wsSetup() {
     socket.onmessage = function(msg) {  
         try {
             debug("WebSocket Recv:" + msg.data);
-            //XXX: TODO What are you going to do here?            
+            //XXX: TODO What are you going to do here? 
+            var data = JSON.parse(msg.data);
+            for (let name in data) {
+                world[name] = data[name];
+                drawNextFrame();
+            }
         } catch (e) {
             alert("socket on message: " + e);
         }
